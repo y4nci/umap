@@ -218,3 +218,8 @@ def average_nn_distance(dist_matrix):
         )
 
     return averages
+
+
+def print_if_verbose(verbose, *args, **kwargs):
+    if verbose:
+        print(*args, **kwargs)

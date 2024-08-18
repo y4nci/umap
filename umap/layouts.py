@@ -89,7 +89,7 @@ def _optimize_layout_euclidean_single_epoch(
     dens_mu,
     dens_mu_tot,
 ):
-    for i in numba.prange(epochs_per_sample.shape[0]):
+    for i in range(epochs_per_sample.shape[0]):
         if epoch_of_next_sample[i] <= n:
             j = head[i]
             k = tail[i]
@@ -327,16 +327,16 @@ def optimize_layout_euclidean(
         dens_lambda = densmap_kwds["lambda"]
         dens_R = densmap_kwds["R"]
         dens_mu = densmap_kwds["mu"]
-        dens_phi_sum = np.zeros(n_vertices, dtype=np.float32)
-        dens_re_sum = np.zeros(n_vertices, dtype=np.float32)
+        dens_phi_sum = [0.0] * n_vertices
+        dens_re_sum = [0.0] * n_vertices
         dens_var_shift = densmap_kwds["var_shift"]
     else:
         dens_mu_tot = 0
         dens_lambda = 0
-        dens_R = np.zeros(1, dtype=np.float32)
-        dens_mu = np.zeros(1, dtype=np.float32)
-        dens_phi_sum = np.zeros(1, dtype=np.float32)
-        dens_re_sum = np.zeros(1, dtype=np.float32)
+        dens_R = [0.0] * 1
+        dens_mu = [0.0] * 1
+        dens_phi_sum = [0.0] * 1
+        dens_re_sum = [0.0] * 1
 
     epochs_list = None
     embedding_list = []

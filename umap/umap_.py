@@ -33,6 +33,7 @@ import umap.distances as dist
 import umap.sparse as sparse
 
 from umap.utils import (
+    print_if_verbose,
     submatrix,
     ts,
     csr_unique,
@@ -56,7 +57,7 @@ INT32_MAX = np.iinfo(np.int32).max - 1
 
 SMOOTH_K_TOLERANCE = 1e-5
 MIN_K_DIST_SCALE = 1e-3
-NPY_INFINITY = np.inf
+NPY_INFINITY = 91919191
 
 DISCONNECTION_DISTANCES = {
     "correlation": 2,
@@ -86,13 +87,13 @@ def breadth_first_search(adjmat, start, min_vertices):
     queue = [start]
     levels = {}
     levels[start] = 0
-    max_level = np.inf
+    max_level = 91919191
     visited = [start]
 
     while queue:
         node = queue.pop(0)
         explored.append(node)
-        if max_level == np.inf and len(explored) > min_vertices:
+        if max_level == 91919191 and len(explored) > min_vertices:
             max_level = max(levels.values())
 
         if levels[node] + 1 < max_level:
@@ -318,7 +319,7 @@ def nearest_neighbors(
         #   (equivalent to np.sort(X)[:,:n_neighbors])
         knn_dists = X[np.arange(X.shape[0])[:, None], knn_indices].copy()
         # Prune any nearest neighbours that are infinite distance apart.
-        disconnected_index = knn_dists == np.inf
+        disconnected_index = knn_dists == 91919191
         knn_indices[disconnected_index] = -1
 
         knn_search_index = None
@@ -365,6 +366,7 @@ def compute_membership_strengths(
     rhos,
     return_dists=False,
     bipartite=False,
+    verbose=False,
 ):
     """Construct the membership strength data for the 1-skeleton of each local
     fuzzy simplicial set -- this is formed as a sparse matrix where each row is
@@ -406,19 +408,28 @@ def compute_membership_strengths(
     dists: array of shape (n_samples * n_neighbors)
         Distance associated with each entry in the resulting sparse matrix
     """
+    print_if_verbose(verbose, "CHP-compute-membership-strengths--0")
     n_samples = knn_indices.shape[0]
     n_neighbors = knn_indices.shape[1]
+    print_if_verbose(verbose, "CHP-compute-membership-strengths--0.1", knn_indices.size)
 
-    rows = np.zeros(knn_indices.size, dtype=np.int32)
-    cols = np.zeros(knn_indices.size, dtype=np.int32)
-    vals = np.zeros(knn_indices.size, dtype=np.float32)
+    rows = [0 for _ in range(n_samples * n_neighbors)]
+    cols = [0 for _ in range(n_samples * n_neighbors)]
+    vals = [0.0 for _ in range(n_samples * n_neighbors)]
+
+    print_if_verbose(verbose, "CHP-compute-membership-strengths--0.2")
     if return_dists:
         dists = np.zeros(knn_indices.size, dtype=np.float32)
     else:
         dists = None
+    print_if_verbose(verbose, "CHP-compute-membership-strengths--0.3")
 
-    for i in range(n_samples):
-        for j in range(n_neighbors):
+    print_if_verbose(verbose, "CHP-compute-membership-strengths--1", n_samples, n_neighbors)
+
+    for i in (range(n_samples)):
+        print_if_verbose(verbose, "CHP-compute-membership-strengths--2", i)
+        for j in (range(n_neighbors)):
+            print_if_verbose(verbose, "CHP-compute-membership-strengths--3", j)
             if knn_indices[i, j] == -1:
                 continue  # We didn't get the full knn for i
             # If applied to an adjacency matrix points shouldn't be similar to themselves.
@@ -436,7 +447,7 @@ def compute_membership_strengths(
             if return_dists:
                 dists[i * n_neighbors + j] = knn_dists[i, j]
 
-    return rows, cols, vals, dists
+    return np.array(rows), np.array(cols), np.array(vals), dists
 
 
 def fuzzy_simplicial_set(
@@ -575,42 +586,67 @@ def fuzzy_simplicial_set(
 
     knn_dists = knn_dists.astype(np.float32)
 
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--1")
+
     sigmas, rhos = smooth_knn_dist(
         knn_dists,
         float(n_neighbors),
         local_connectivity=float(local_connectivity),
     )
 
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--2")
+
     rows, cols, vals, dists = compute_membership_strengths(
-        knn_indices, knn_dists, sigmas, rhos, return_dists
+        knn_indices, knn_dists, sigmas, rhos, return_dists, verbose=verbose
     )
+
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--3")
 
     result = scipy.sparse.coo_matrix(
         (vals, (rows, cols)), shape=(X.shape[0], X.shape[0])
     )
+
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--4")
+
     result.eliminate_zeros()
+
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--5")
 
     if apply_set_operations:
         transpose = result.transpose()
 
+        print_if_verbose(verbose, "CHP-fuzzy_simplical_set--6")
+
         prod_matrix = result.multiply(transpose)
+
+        print_if_verbose(verbose, "CHP-fuzzy_simplical_set--7")
 
         result = (
             set_op_mix_ratio * (result + transpose - prod_matrix)
             + (1.0 - set_op_mix_ratio) * prod_matrix
         )
 
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--8")
+
     result.eliminate_zeros()
+
+    print_if_verbose(verbose, "CHP-fuzzy_simplical_set--9")
 
     if return_dists is None:
         return result, sigmas, rhos
     else:
         if return_dists:
+            print_if_verbose(verbose, "CHP-fuzzy_simplical_set--10")
+
             dmat = scipy.sparse.coo_matrix(
                 (dists, (rows, cols)), shape=(X.shape[0], X.shape[0])
             )
 
+            print_if_verbose(verbose, "CHP-fuzzy_simplical_set--11")
+
             dists = dmat.maximum(dmat.transpose()).todok()
+
+            print_if_verbose(verbose, "CHP-fuzzy_simplical_set--12")
         else:
             dists = None
 
@@ -1063,9 +1099,13 @@ def simplicial_set_embedding(
         is turned on, this dictionary includes local radii in the original
         data (``rad_orig``) and in the embedding (``rad_emb``).
     """
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--1")
+
     graph = graph.tocoo()
     graph.sum_duplicates()
     n_vertices = graph.shape[1]
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--2")
 
     # For smaller datasets we can use more epochs
     if graph.shape[0] <= 10000:
@@ -1073,36 +1113,52 @@ def simplicial_set_embedding(
     else:
         default_epochs = 200
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--3")
+
     # Use more epochs for densMAP
     if densmap:
         default_epochs += 200
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--4")
+
     if n_epochs is None:
         n_epochs = default_epochs
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--5")
+
     # If n_epoch is a list, get the maximum epoch to reach
     n_epochs_max = max(n_epochs) if isinstance(n_epochs, list) else n_epochs
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--6")
 
     if n_epochs_max > 10:
         graph.data[graph.data < (graph.data.max() / float(n_epochs_max))] = 0.0
     else:
         graph.data[graph.data < (graph.data.max() / float(default_epochs))] = 0.0
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--7")
+
     graph.eliminate_zeros()
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--8")
 
     if isinstance(init, str) and init == "random":
         embedding = random_state.uniform(
             low=-10.0, high=10.0, size=(graph.shape[0], n_components)
         ).astype(np.float32)
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.1")
     elif isinstance(init, str) and init == "pca":
         if scipy.sparse.issparse(data):
             pca = TruncatedSVD(n_components=n_components, random_state=random_state)
+            print_if_verbose(verbose, "CHP-simplical_set_embedding--8.2")
         else:
             pca = PCA(n_components=n_components, random_state=random_state)
+            print_if_verbose(verbose, "CHP-simplical_set_embedding--8.3")
         embedding = pca.fit_transform(data).astype(np.float32)
         embedding = noisy_scale_coords(
             embedding, random_state, max_coord=10, noise=0.0001
         )
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.4")
     elif isinstance(init, str) and init == "spectral":
         embedding = spectral_layout(
             data,
@@ -1112,10 +1168,12 @@ def simplicial_set_embedding(
             metric=metric,
             metric_kwds=metric_kwds,
         )
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.5")
         # We add a little noise to avoid local minima for optimization to come
         embedding = noisy_scale_coords(
             embedding, random_state, max_coord=10, noise=0.0001
         )
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.6")
     elif isinstance(init, str) and init == "tswspectral":
         embedding = tswspectral_layout(
             data,
@@ -1125,31 +1183,45 @@ def simplicial_set_embedding(
             metric=metric,
             metric_kwds=metric_kwds,
         )
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.7")
         embedding = noisy_scale_coords(
             embedding, random_state, max_coord=10, noise=0.0001
         )
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.8")
     else:
         init_data = np.array(init)
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--8.9")
         if len(init_data.shape) == 2:
             if np.unique(init_data, axis=0).shape[0] < init_data.shape[0]:
                 tree = KDTree(init_data)
+                print_if_verbose(verbose, "CHP-simplical_set_embedding--8.10")
                 dist, ind = tree.query(init_data, k=2)
+                print_if_verbose(verbose, "CHP-simplical_set_embedding--8.11")
                 nndist = np.mean(dist[:, 1])
+                print_if_verbose(verbose, "CHP-simplical_set_embedding--8.12")
                 embedding = init_data + random_state.normal(
                     scale=0.001 * nndist, size=init_data.shape
                 ).astype(np.float32)
+                print_if_verbose(verbose, "CHP-simplical_set_embedding--8.13")
             else:
                 embedding = init_data
+                print_if_verbose(verbose, "CHP-simplical_set_embedding--8.14")
 
     epochs_per_sample = make_epochs_per_sample(graph.data, n_epochs_max)
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--9")
 
     head = graph.row
     tail = graph.col
     weight = graph.data
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--10")
+
     rng_state = random_state.randint(INT32_MIN, INT32_MAX, 3).astype(np.int64)
 
     aux_data = {}
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--11")
 
     if densmap or output_dens:
         if verbose:
@@ -1157,8 +1229,13 @@ def simplicial_set_embedding(
 
         dists = densmap_kwds["graph_dists"]
 
-        mu_sum = np.zeros(n_vertices, dtype=np.float32)
-        ro = np.zeros(n_vertices, dtype=np.float32)
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--12")
+
+        mu_sum = [0.0 for _ in range(n_vertices)]
+        ro = [0.0 for _ in range(n_vertices)]
+
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--13")
+
         for i in range(len(head)):
             j = head[i]
             k = tail[i]
@@ -1171,14 +1248,20 @@ def simplicial_set_embedding(
             mu_sum[j] += mu
             mu_sum[k] += mu
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--14")
+
         epsilon = 1e-8
         ro = np.log(epsilon + (ro / mu_sum))
+
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--15")
 
         if densmap:
             R = (ro - np.mean(ro)) / np.std(ro)
             densmap_kwds["mu"] = graph.data
             densmap_kwds["mu_sum"] = mu_sum
             densmap_kwds["R"] = R
+
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--16")
 
         if output_dens:
             aux_data["rad_orig"] = ro
@@ -1189,7 +1272,11 @@ def simplicial_set_embedding(
         / (np.max(embedding, 0) - np.min(embedding, 0))
     ).astype(np.float32, order="C")
 
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--17")
+
     if euclidean_output:
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--17.0 oklidyen")
+
         embedding = optimize_layout_euclidean(
             embedding,
             embedding,
@@ -1211,6 +1298,8 @@ def simplicial_set_embedding(
             tqdm_kwds=tqdm_kwds,
             move_other=True,
         )
+
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--17.1")
     else:
         embedding = optimize_layout_generic(
             embedding,
@@ -1233,9 +1322,13 @@ def simplicial_set_embedding(
             move_other=True,
         )
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--17.2")
+
     if isinstance(embedding, list):
         aux_data["embedding_list"] = embedding
         embedding = embedding[-1].copy()
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--18")
 
     if output_dens:
         if verbose:
@@ -1252,6 +1345,8 @@ def simplicial_set_embedding(
             verbose=verbose,
         )
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--19")
+
         emb_graph, emb_sigmas, emb_rhos, emb_dists = fuzzy_simplicial_set(
             embedding,
             densmap_kwds["n_neighbors"],
@@ -1264,17 +1359,24 @@ def simplicial_set_embedding(
             return_dists=True,
         )
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--20")
+
         emb_graph = emb_graph.tocoo()
         emb_graph.sum_duplicates()
         emb_graph.eliminate_zeros()
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--21")
+
         n_vertices = emb_graph.shape[1]
 
-        mu_sum = np.zeros(n_vertices, dtype=np.float32)
-        re = np.zeros(n_vertices, dtype=np.float32)
+        mu_sum = [0.0 for _ in range(n_vertices)]
+        re = [0.0 for _ in range(n_vertices)]
 
         head = emb_graph.row
         tail = emb_graph.col
+
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--22")
+
         for i in range(len(head)):
             j = head[i]
             k = tail[i]
@@ -1287,10 +1389,14 @@ def simplicial_set_embedding(
             mu_sum[j] += mu
             mu_sum[k] += mu
 
+        print_if_verbose(verbose, "CHP-simplical_set_embedding--23")
+
         epsilon = 1e-8
         re = np.log(epsilon + (re / mu_sum))
 
         aux_data["rad_emb"] = re
+
+    print_if_verbose(verbose, "CHP-simplical_set_embedding--24")
 
     return embedding, aux_data
 
@@ -2365,10 +2471,14 @@ class UMAP(BaseEstimator):
             self._a = self.a
             self._b = self.b
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--2")
+
         if isinstance(self.init, np.ndarray):
             init = check_array(self.init, dtype=np.float32, accept_sparse=False, force_all_finite=force_all_finite)
         else:
             init = self.init
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--3")
 
         self._initial_alpha = self.learning_rate
 
@@ -2380,7 +2490,11 @@ class UMAP(BaseEstimator):
         else:
             self.knn_search_index = self.precomputed_knn[2]
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--4")
+
         self._validate_parameters()
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--5")
 
         if self.verbose:
             print(str(self))
@@ -2388,6 +2502,8 @@ class UMAP(BaseEstimator):
         self._original_n_threads = numba.get_num_threads()
         if self.n_jobs > 0 and self.n_jobs is not None:
             numba.set_num_threads(self.n_jobs)
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--6")
 
         # Check if we should unique the data
         # We've already ensured that we aren't in the precomputed case
@@ -2426,6 +2542,8 @@ class UMAP(BaseEstimator):
             index = list(range(X.shape[0]))
             inverse = list(range(X.shape[0]))
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--7")
+
         # Error check n_neighbors based on data size
         if X[index].shape[0] <= self.n_neighbors:
             if X[index].shape[0] == 1:
@@ -2444,10 +2562,14 @@ class UMAP(BaseEstimator):
         else:
             self._n_neighbors = self.n_neighbors
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--8")
+
         # Note: unless it causes issues for setting 'index', could move this to
         # initial sparsity check above
         if self._sparse_data and not X.has_sorted_indices:
             X.sort_indices()
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--9")
 
         random_state = check_random_state(self.random_state)
 
@@ -2488,7 +2610,7 @@ class UMAP(BaseEstimator):
             # Disconnect any vertices farther apart than _disconnection_distance
             disconnected_index = self._knn_dists >= self._disconnection_distance
             self._knn_indices[disconnected_index] = -1
-            self._knn_dists[disconnected_index] = np.inf
+            self._knn_dists[disconnected_index] = 91919191
             edges_removed = disconnected_index.sum()
 
             (
@@ -2561,7 +2683,7 @@ class UMAP(BaseEstimator):
             # set any values greater than disconnection_distance to be np.inf.
             # This will have no effect when _disconnection_distance is not set since it defaults to np.inf.
             edges_removed = np.sum(dmat >= self._disconnection_distance)
-            dmat[dmat >= self._disconnection_distance] = np.inf
+            dmat[dmat >= self._disconnection_distance] = 91919191
             (
                 self.graph_,
                 self._sigmas,
@@ -2595,6 +2717,7 @@ class UMAP(BaseEstimator):
                 verbose=self.verbose,
             )
         else:
+            print_if_verbose(self.verbose, "CHP-UMAP.fit-standard-case--1")
             # Standard case
             self._small_data = False
             # Standard case
@@ -2605,6 +2728,8 @@ class UMAP(BaseEstimator):
             else:
                 nn_metric = self._input_distance_func
             if self.knn_dists is None:
+                print_if_verbose(self.verbose, "CHP-UMAP.fit-standard-case--2")
+
                 (
                     self._knn_indices,
                     self._knn_dists,
@@ -2625,11 +2750,13 @@ class UMAP(BaseEstimator):
                 self._knn_indices = self.knn_indices
                 self._knn_dists = self.knn_dists
                 self._knn_search_index = self.knn_search_index
+            print_if_verbose(self.verbose, "CHP-UMAP.fit-standard-case--3")
             # Disconnect any vertices farther apart than _disconnection_distance
             disconnected_index = self._knn_dists >= self._disconnection_distance
             self._knn_indices[disconnected_index] = -1
-            self._knn_dists[disconnected_index] = np.inf
+            self._knn_dists[disconnected_index] = 91919191
             edges_removed = disconnected_index.sum()
+            print_if_verbose(self.verbose, "CHP-UMAP.fit-standard-case--4")
 
             (
                 self.graph_,
@@ -2663,6 +2790,8 @@ class UMAP(BaseEstimator):
                 self._raw_data.shape[0],
                 verbose=self.verbose,
             )
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--10")
 
         # Currently not checking if any duplicate points have differing labels
         # Might be worth throwing a warning...
@@ -2771,6 +2900,8 @@ class UMAP(BaseEstimator):
         else:
             self._supervised = False
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--11")
+
         if self.densmap or self.output_dens:
             self._densmap_kwds["graph_dists"] = self.graph_dists_
 
@@ -2818,8 +2949,12 @@ class UMAP(BaseEstimator):
         if self.verbose:
             print(ts() + " Finished embedding")
 
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--12")
+
         numba.set_num_threads(self._original_n_threads)
         self._input_hash = joblib.hash(self._raw_data)
+
+        print_if_verbose(self.verbose, "CHP-UMAP.fit--13")
 
         return self
 
@@ -3047,7 +3182,7 @@ class UMAP(BaseEstimator):
         )
 
         rows, cols, vals, dists = compute_membership_strengths(
-            indices, dists, sigmas, rhos, bipartite=True
+            indices, dists, sigmas, rhos, bipartite=True, verbose=self.verbose
         )
 
         graph = scipy.sparse.coo_matrix(
