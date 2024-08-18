@@ -33,7 +33,6 @@ import umap.distances as dist
 import umap.sparse as sparse
 
 from umap.utils import (
-    print_if_verbose,
     submatrix,
     ts,
     csr_unique,
@@ -67,6 +66,11 @@ DISCONNECTION_DISTANCES = {
     "bit_jaccard": 1,
     "dice": 1,
 }
+
+
+def print_if_verbose(verbose, *args, **kwargs):
+    if verbose:
+        print(*args, **kwargs)
 
 
 def flatten_iter(container):
@@ -408,6 +412,9 @@ def compute_membership_strengths(
     dists: array of shape (n_samples * n_neighbors)
         Distance associated with each entry in the resulting sparse matrix
     """
+    def print_if_verbose(verbose, arg1, arg2=None, arg3=None):
+        if verbose:
+            print(arg1, arg2, arg3)
     print_if_verbose(verbose, "CHP-compute-membership-strengths--0")
     n_samples = knn_indices.shape[0]
     n_neighbors = knn_indices.shape[1]
